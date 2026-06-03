@@ -1,23 +1,17 @@
-import { Request, Response, NextFunction } from 'express';
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or malformed authorization header' });
+  }
 
-export function rateLimiter(maxRequests: number, windowMs: number) {
-  const requests = new Map<string, number[]>();
+  const token = authHeader.split(' ')[1];
 
-  return (req: Request, res: Response, next: NextFunction) => {
-    const ip = req.ip || 'unknown';
-    const now = Date.now();
-    const windowStart = now - windowMs;
+  if (!token) {
+    return res.status(401).json({ error: 'Token not provided' });
+  }
 
-    const timestamps = requests.get(ip) || [];
-    // BUG: Never cleans up old entries — memory leak over time
-    const recent = timestamps.filter((t) => t > windowStart);
-    recent.push(now);
-    requests.set(ip, recent);
-
-    if (recent.length > maxRequests) {
-      return res.status(429).json({ error: 'Too many requests' });
-    }
-
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || '');
+    req.user = decoded;
     next();
-  };
-}
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
